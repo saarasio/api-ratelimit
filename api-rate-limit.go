@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -21,6 +22,7 @@ const (
 type HttpMethod struct {
 	method Method
 	arg    interface{}
+	mesg   string
 }
 
 type Url string
@@ -93,6 +95,7 @@ func dohttp(cmds *map[int]map[HttpMethod]Url) {
 	for _, k := range keys {
 		c := (*cmds)[k]
 		for httpmethod, url := range c {
+			fmt.Println(httpmethod.mesg)
 			switch httpmethod.method {
 			case GET:
 				res, err := http.Get(string(url))
@@ -127,7 +130,8 @@ func dohttp(cmds *map[int]map[HttpMethod]Url) {
 //curl -s -X POST localhost:1323/service/l/route/r/filter/route_rl_1 | jq
 //curl -s -X POST localhost:1323/proxy/gw/globalconfig/gc1 | jq
 
-func main() {
+func doop(op string, dry bool) {
+
 	post_proxy_arg := PostProxyArg{
 		Name: "test_gw",
 	}
@@ -211,68 +215,95 @@ func main() {
 		Config:            gc_cfg_rl,
 	}
 
-	var setup_enroute_standalone = map[int]map[HttpMethod]Url{
-		// sequence, {method, arg}, url
+	var steps *map[int]map[HttpMethod]Url
 
-		// Dump Proxy gw if present
-		25: map[HttpMethod]Url{HttpMethod{GET, nil}: Url(base_url + "/proxy/dump/gw")},
+	// init with no-op
+	steps = &(map[int]map[HttpMethod]Url{})
 
-		// Create Proxy
-		50: map[HttpMethod]Url{HttpMethod{POST, &post_proxy_arg}: Url(base_url + "/proxy")},
+	switch op {
+	case "create":
+		var setup_enroute_standalone = map[int]map[HttpMethod]Url{
+			// sequence, {method, arg}, url
 
-		// Create Service
-		75: map[HttpMethod]Url{HttpMethod{POST, &post_service_arg}: Url(base_url + "/service")},
+			// Dump Proxy gw if present
+			25: map[HttpMethod]Url{HttpMethod{GET, nil, "-- GET PROXY --"}: Url(base_url + "/proxy/dump/gw")},
 
-		// Create route for service
-		100: map[HttpMethod]Url{
-			HttpMethod{POST, &post_route_arg}: Url(base_url + "/service/" + post_service_arg.Service_Name + "/route")},
+			// Create Proxy
+			50: map[HttpMethod]Url{HttpMethod{POST, &post_proxy_arg, "-- POST PROXY --"}: Url(base_url + "/proxy")},
 
-		// Create upstream
-		125: map[HttpMethod]Url{
-			HttpMethod{POST, &post_upstream_arg}: Url(base_url + "/upstream")},
+			// Create Service
+			75: map[HttpMethod]Url{HttpMethod{POST, &post_service_arg, "-- POST SVC --"}: Url(base_url + "/service")},
 
-		// Create filter lua
-		150: map[HttpMethod]Url{
-			HttpMethod{POST, &post_lua_filter_arg}: Url(base_url + "/filter")},
+			// Create route for service
+			100: map[HttpMethod]Url{
+				HttpMethod{POST, &post_route_arg, "-- POST RT --"}: Url(base_url + "/service/" + post_service_arg.Service_Name + "/route")},
 
-		// Create filter rl
-		175: map[HttpMethod]Url{
-			HttpMethod{POST, &post_rl_filter_arg}: Url(base_url + "/filter")},
+			// Create upstream
+			125: map[HttpMethod]Url{
+				HttpMethod{POST, &post_upstream_arg, "-- POST U --"}: Url(base_url + "/upstream")},
 
-		// Create globalconfig
-		200: map[HttpMethod]Url{
-			HttpMethod{POST, &post_gc_arg}: Url(base_url + "/globalconfig")},
+			// Create filter lua
+			150: map[HttpMethod]Url{
+				HttpMethod{POST, &post_lua_filter_arg, "-- POST FIL --"}: Url(base_url + "/filter")},
+
+			// Create filter rl
+			175: map[HttpMethod]Url{
+				HttpMethod{POST, &post_rl_filter_arg, "-- POST FIL --"}: Url(base_url + "/filter")},
+
+			// Create globalconfig
+			200: map[HttpMethod]Url{
+				HttpMethod{POST, &post_gc_arg, "-- POST GC --"}: Url(base_url + "/globalconfig")},
+		}
+
+		steps = &setup_enroute_standalone
+	case "delete":
+		var delete_enroute_standalone = map[int]map[HttpMethod]Url{
+			// sequence, {method, arg}, url
+
+			// Delete globalconfig
+			23: map[HttpMethod]Url{HttpMethod{DELETE, nil, "-- DEL GC --"}: Url(base_url + "/globalconfig/" + post_gc_arg.Globalconfig_name)},
+
+			// Delete filter
+			24: map[HttpMethod]Url{HttpMethod{DELETE, nil, "-- DEL FIL --"}: Url(base_url + "/filter/" + post_rl_filter_arg.Filter_name)},
+			25: map[HttpMethod]Url{HttpMethod{DELETE, nil, "-- DEL FIL --"}: Url(base_url + "/filter/" + post_lua_filter_arg.Filter_name)},
+
+			// Delete upstream
+			50: map[HttpMethod]Url{HttpMethod{DELETE, nil, "-- DEL U --"}: Url(base_url + "/upstream/" + post_upstream_arg.Upstream_name)},
+
+			// Delete route
+			75: map[HttpMethod]Url{HttpMethod{DELETE, nil, "-- DEL RT --"}: Url(base_url + "/service/" + post_service_arg.Service_Name + "/route/" + post_route_arg.Route_Name)},
+
+			// Delete service
+			100: map[HttpMethod]Url{HttpMethod{DELETE, nil, "-- DEL SVC --"}: Url(base_url + "/service/" + post_service_arg.Service_Name)},
+
+			// Delete service
+			125: map[HttpMethod]Url{HttpMethod{DELETE, nil, "-- DEL PROXY --"}: Url(base_url + "/proxy/" + post_proxy_arg.Name)},
+		}
+
+		steps = &delete_enroute_standalone
+	case "show":
+
+		var show_enroute_standalone = map[int]map[HttpMethod]Url{
+			25:  map[HttpMethod]Url{HttpMethod{GET, nil, " -- GET PROXY -- "}: Url(base_url + "/proxy/dump/gw")},
+			50:  map[HttpMethod]Url{HttpMethod{GET, nil, " -- GET PROXY -- "}: Url(base_url + "/proxy")},
+			75:  map[HttpMethod]Url{HttpMethod{GET, nil, " -- GET SVC -- "}: Url(base_url + "/service")},
+			100: map[HttpMethod]Url{HttpMethod{GET, nil, " -- GET RT -- "}: Url(base_url + "/service/" + post_service_arg.Service_Name + "/route")},
+			125: map[HttpMethod]Url{HttpMethod{GET, nil, " -- GET U -- "}: Url(base_url + "/upstream")},
+			150: map[HttpMethod]Url{HttpMethod{GET, nil, " -- GET FIL -- "}: Url(base_url + "/filter")},
+			175: map[HttpMethod]Url{HttpMethod{GET, nil, " -- GET GC -- "}: Url(base_url + "/globalconfig")},
+		}
+
+		steps = &show_enroute_standalone
+	default:
+		fmt.Printf("Operation [%s] not supported\n", op)
 	}
 
-	var delete_enroute_standalone = map[int]map[HttpMethod]Url{
-		// sequence, {method, arg}, url
+	dohttp(steps)
+}
 
-		// Delete globalconfig
-		23: map[HttpMethod]Url{HttpMethod{DELETE, nil}: Url(base_url + "/globalconfig/" + post_gc_arg.Globalconfig_name)},
-
-		// Delete filter
-		24: map[HttpMethod]Url{HttpMethod{DELETE, nil}: Url(base_url + "/filter/" + post_rl_filter_arg.Filter_name)},
-		25: map[HttpMethod]Url{HttpMethod{DELETE, nil}: Url(base_url + "/filter/" + post_lua_filter_arg.Filter_name)},
-
-		// Delete upstream
-		50: map[HttpMethod]Url{HttpMethod{DELETE, nil}: Url(base_url + "/upstream/" + post_upstream_arg.Upstream_name)},
-
-		// Delete route
-		75: map[HttpMethod]Url{HttpMethod{DELETE, nil}: Url(base_url + "/service/" + post_service_arg.Service_Name + "/route/" + post_route_arg.Route_Name)},
-
-		// Delete service
-		100: map[HttpMethod]Url{HttpMethod{DELETE, nil}: Url(base_url + "/service/" + post_service_arg.Service_Name)},
-
-		// Delete service
-		125: map[HttpMethod]Url{HttpMethod{DELETE, nil}: Url(base_url + "/proxy/" + post_proxy_arg.Name)},
-	}
-
-	var create bool = true
-
-	if create == true {
-		dohttp(&setup_enroute_standalone)
-	} else {
-		dohttp(&delete_enroute_standalone)
-	}
-
+func main() {
+	op := flag.String("op", "show", "[create | delete | show]")
+	dry := flag.Bool("dry-run", true, "[true | false]")
+    flag.Parse()
+	doop(*op, *dry)
 }
