@@ -97,12 +97,12 @@ func debug(data []byte, err error) {
 func doreq(req *http.Request, err error, rstr, url string, dbg bool) {
 	if err == nil {
 		client := &http.Client{}
-        if dbg {
-		    debug(httputil.DumpRequestOut(req, true))
-        }
+		if dbg {
+			debug(httputil.DumpRequestOut(req, true))
+		}
 		res, err := client.Do(req)
-        body, err := ioutil.ReadAll(res.Body)
-        fmt.Printf("%s\n", pp(body))
+		body, err := ioutil.ReadAll(res.Body)
+		fmt.Printf("%s\n", pp(body))
 		res.Body.Close()
 		err_out(res, err)
 	} else {
@@ -158,6 +158,14 @@ func dohttp(cmds *map[int]map[HttpMethod]Url, dbg bool) {
 
 		}
 	}
+}
+
+func removews(with_ws []byte) []byte {
+	with_ws = bytes.Replace(with_ws, []byte{10}, []byte{}, -1)
+	with_ws = bytes.Replace(with_ws, []byte{9}, []byte{}, -1)
+	with_ws = bytes.Replace(with_ws, []byte{92}, []byte{}, -1)
+
+	return with_ws
 }
 
 func doop(op string, dbg bool) {
@@ -234,14 +242,14 @@ func doop(op string, dbg bool) {
 		      }
 		    }
 		  ]
-		}
+		}`
 
-	`
+	gc_cfg_rl_b := removews([]byte(gc_cfg_rl))
 
 	post_gc_arg := PostGlobalConfigArg{
 		Globalconfig_name: "test_gc",
 		Globalconfig_type: "globalconfig_ratelimit",
-		Config:            gc_cfg_rl,
+		Config:            string(gc_cfg_rl_b),
 	}
 
 	var urls = map[string]string{
@@ -384,6 +392,7 @@ func doop(op string, dbg bool) {
 		}
 
 		steps = &show_enroute_standalone
+
 	default:
 		fmt.Printf("Operation [%s] not supported\n", op)
 	}
