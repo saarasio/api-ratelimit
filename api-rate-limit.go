@@ -94,8 +94,25 @@ func debug(data []byte, err error) {
 	}
 }
 
+func doreq(req *http.Request, err error, rstr, url string, dbg bool) {
+	if err == nil {
+		client := &http.Client{}
+        if dbg {
+		    debug(httputil.DumpRequestOut(req, true))
+        }
+		res, err := client.Do(req)
+        body, err := ioutil.ReadAll(res.Body)
+        fmt.Printf("%s\n", pp(body))
+		res.Body.Close()
+		err_out(res, err)
+	} else {
+		fmt.Printf("Request run error while running [%s] url - [%s]\n", rstr, url)
+	}
+
+}
+
 // run http commands in sequence
-func dohttp(cmds *map[int]map[HttpMethod]Url) {
+func dohttp(cmds *map[int]map[HttpMethod]Url, dbg bool) {
 	var keys []int
 	for k := range *cmds {
 		keys = append(keys, k)
@@ -108,8 +125,8 @@ func dohttp(cmds *map[int]map[HttpMethod]Url) {
 			fmt.Println(httpmethod.mesg)
 			switch httpmethod.method {
 			case GET:
-				res, err := http.Get(string(url))
-				err_out(res, err)
+				req, err := http.NewRequest("GET", string(url), nil)
+				doreq(req, err, "GET", string(url), dbg)
 
 			case POST:
 				var req *http.Request
@@ -128,26 +145,11 @@ func dohttp(cmds *map[int]map[HttpMethod]Url) {
 					req, err = http.NewRequest("POST", string(url), nil)
 				}
 
-				if err == nil {
-					client := &http.Client{}
-					debug(httputil.DumpRequestOut(req, true))
-					res, err := client.Do(req)
-					res.Body.Close()
-					err_out(res, err)
-				} else {
-					fmt.Printf("Request run error while running POST url - [%s]\n", url)
-				}
-
-				//res, err := http.Post(string(url), "application/json", bytes.NewBuffer(post_arg_json))
-				//err_out(res, err)
+				doreq(req, err, "POST", string(url), dbg)
 
 			case DELETE:
 				req, err := http.NewRequest("DELETE", string(url), nil)
-				err_check(err, "Delete failed for "+string(url)+"\n")
-				client := &http.Client{}
-				res, err := client.Do(req)
-				res.Body.Close()
-				err_out(res, err)
+				doreq(req, err, "DELETE", string(url), dbg)
 
 			case PATCH:
 			default:
@@ -158,10 +160,10 @@ func dohttp(cmds *map[int]map[HttpMethod]Url) {
 	}
 }
 
-func doop(op string, dry bool) {
+func doop(op string, dbg bool) {
 
 	post_proxy_arg := PostProxyArg{
-		Name: "test_gw",
+		Name: "gw",
 	}
 
 	post_service_arg := PostServiceArg{
@@ -171,17 +173,16 @@ func doop(op string, dry bool) {
 
 	post_route_arg := PostRouteArg{
 		Route_Name:   "test_route",
-		Route_Prefix: "/test_prefix",
+		Route_Prefix: "/",
 	}
 
 	post_upstream_arg := PostUpstreamArg{
 		Upstream_name:    "test_upstream",
 		Upstream_ip:      "localhost",
-		Upstream_port:    "8888",
+		Upstream_port:    "9001",
 		Upstream_hc_path: "/",
 		Upstream_weight:  "100",
 	}
-
 	var filter_cfg_lua = `
 		function envoy_on_request(request_handle)
 		   request_handle:logInfo("Hello World request");
@@ -387,12 +388,12 @@ func doop(op string, dry bool) {
 		fmt.Printf("Operation [%s] not supported\n", op)
 	}
 
-	dohttp(steps)
+	dohttp(steps, dbg)
 }
 
 func main() {
 	op := flag.String("op", "show", "[create | delete | show]")
-	dry := flag.Bool("dry-run", true, "[true | false]")
+	dbg := flag.Bool("dbg", false, "[true | false]")
 	flag.Parse()
-	doop(*op, *dry)
+	doop(*op, *dbg)
 }
