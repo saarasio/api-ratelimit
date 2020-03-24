@@ -191,60 +191,135 @@ func doop(op string, dbg bool) {
 		Upstream_hc_path: "/",
 		Upstream_weight:  "100",
 	}
-	var filter_cfg_lua = `
+
+	var lua_rl_eb = `
+		function get_api_key(path, q_param_name)
+		    -- path = "/?api-key=valid-key"
+		    s, e = string.find(path, "?")
+		    if s ~= nil then
+		      for pre, q_params in string.gmatch(path, "(%S+)?(%S+)") do
+		        -- print(pre, q_params, path, s, e)
+		        for k, v in string.gmatch(q_params, "(%S+)=(%S+)") do
+		          print(k, v)
+		          if k == q_param_name then
+		            return v
+		          end
+		        end
+		      end
+		    end
+		
+		    return nil
+		end
+		
 		function envoy_on_request(request_handle)
-		   request_handle:logInfo("Hello World request");
+		   request_handle:logInfo("Begin: envoy_on_request()");
+		
+		   hdr_x_app_key = "x-app-key"
+		   hdr_x_app_not_found = "x-app-notfound"
+		   q_param_name = "api-key"
+		
+		   -- extract API key from header "x-app-key"
+		   headers = request_handle:headers()
+		   header_value = headers:get(hdr_x_app_key)
+		
+		   if header_value ~= nil then
+		     request_handle:logInfo("envoy_on_request() API Key from header "..header_value);
+		   else
+		     request_handle:logInfo("envoy_on_request() API Key in header is nil");
+		   end
+		
+		   -- extract API key from query param "api-key"
+		   path_in = headers:get(":path")
+		   api_key = get_api_key(path_in, q_param_name)
+		
+		   if api_key ~= nil then
+		     request_handle:logInfo("envoy_on_request() API Key from query param"..api_key);
+		   else
+		     request_handle:logInfo("envoy_on_request() API Key from query param is nil");
+		   end
+		
+		   -- If API key found, do nothing
+		   -- else set header x-app-key:x-app-notfound
+		   if header_value == nil then
+		       if api_key == nil then
+		         headers:add(hdr_x_app_key, hdr_x_app_not_found)
+		       else
+		         headers:add(hdr_x_app_key, api_key)
+		       end
+		   end
+		
+		   request_handle:logInfo("End: envoy_on_request()");
+		
 		end
 		
 		function envoy_on_response(response_handle)
-		   response_handle:logInfo("Hello World response");
+		   response_handle:logInfo("Begin: envoy_on_response()");
+		   response_handle:logInfo("End: envoy_on_response()");
 		end
-	`
+    `
 
 	post_lua_filter_arg := PostFilterArg{
 		Filter_name:   "test_filter_lua",
 		Filter_type:   "http_filter_lua",
-		Filter_config: filter_cfg_lua,
+		Filter_config: lua_rl_eb,
 	}
 
-	var filter_cfg_rl = `
-	{
-	  "descriptors" :
-	  [
-	    {
-	      "generic_key":
-	      {
-	        "descriptor_value":"default"
-	      }
-	    }
-	  ]
-	}
-	`
-
+	var rt_eb = `
+		{
+		    "descriptors": [
+		      {
+		        "request_headers": {
+		          "header_name": "x-app-key",
+		          "descriptor_key": "x-app-key"
+		        }
+		      },
+		      {
+		        "remote_address": "{}"
+		      }
+		    ]
+		}
+`
 	post_rl_filter_arg := PostFilterArg{
 		Filter_name:   "test_filter_rl",
 		Filter_type:   "route_filter_ratelimit",
-		Filter_config: filter_cfg_rl,
+		Filter_config: rt_eb,
 	}
 
-	var gc_cfg_rl = `
+	var gc_eb = `
 		{
-		  "domain": "enroute",
-		  "descriptors" :
-		  [
-		    {
-		      "key" : "generic_key",
-		      "value" : "default",
-		      "rate_limit" :
-		      {
-		        "unit" : "second",
-		        "requests_per_unit" : 10
-		      }
-		    }
-		  ]
-		}`
+		    "domain": "enroute",
+		    "descriptors": [
+		        {
+		            "key": "x-app-key",
+		            "value" : "x-app-notfound",
+		
+		            "descriptors": [
+		                {
+		                    "key" : "remote_address",
+		                    "rate_limit": {
+		                        "unit": "second",
+		                        "requests_per_unit": 0
+		                    }
+		                }
+		            ]
+		        },
+		        {
+		            "key": "x-app-key",
+		            "descriptors": [
+		                {
+		                    "key" : "remote_address",
+		                    "rate_limit": {
+		                        "unit": "second",
+		                        "requests_per_unit": 100000
+		                    }
+		                }
+		            ]
+		        }
+		    ]
+		}
+`
 
-	gc_cfg_rl_b := removews([]byte(gc_cfg_rl))
+	gc_cfg_rl_b := removews([]byte(gc_eb))
 
 	post_gc_arg := PostGlobalConfigArg{
 		Globalconfig_name: "test_gc",
