@@ -233,7 +233,7 @@ func doop(op string, dbg bool) {
 		   api_key = get_api_key(path_in, q_param_name)
 		
 		   if api_key ~= nil then
-		     request_handle:logInfo("envoy_on_request() API Key from query param"..api_key);
+		     request_handle:logInfo("envoy_on_request() API Key from query param "..api_key);
 		   else
 		     request_handle:logInfo("envoy_on_request() API Key from query param is nil");
 		   end
@@ -475,6 +475,13 @@ func doop(op string, dbg bool) {
 	dohttp(steps, dbg)
 }
 
+// Program Enroute/Envoy
+// go run api-rate-limit.go --op=create --dbg=true
+// go run api-rate-limit.go --op=show --dbg=true
+// go run api-rate-limit.go --op=delete --dbg=true
+
+// Generate traffic -
+// curl -vvv -H "x-app-key: hdr-app-saaras" http://localhost:8080/?api-key=query-param-saaras
 func main() {
 	op := flag.String("op", "show", "[create | delete | show]")
 	dbg := flag.Bool("dbg", false, "[true | false]")
