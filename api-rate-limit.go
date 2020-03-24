@@ -475,7 +475,7 @@ func doop(op string, dbg bool) {
 	dohttp(steps, dbg)
 }
 
-// Program Enroute/Envoy
+// Quick Start to Program Enroute/Envoy for advanced rate-limiting
 // go run api-rate-limit.go --op=create --dbg=true
 // go run api-rate-limit.go --op=show --dbg=true
 // go run api-rate-limit.go --op=delete --dbg=true
