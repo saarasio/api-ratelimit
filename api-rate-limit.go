@@ -475,6 +475,16 @@ func doop(op string, dbg bool) {
 	dohttp(steps, dbg)
 }
 
+func usage() {
+	var u = `
+      go run api-rate-limit.go --op create --dbg true
+      go run api-rate-limit.go --op show --dbg true
+      go run api-rate-limit.go --op delete --dbg true
+`
+
+	fmt.Printf(u)
+}
+
 // Quick Start to Program Enroute/Envoy for advanced rate-limiting
 // go run api-rate-limit.go --op=create --dbg=true
 // go run api-rate-limit.go --op=show --dbg=true
@@ -483,8 +493,32 @@ func doop(op string, dbg bool) {
 // Generate traffic -
 // curl -vvv -H "x-app-key: hdr-app-saaras" http://localhost:8080/?api-key=query-param-saaras
 func main() {
-	op := flag.String("op", "show", "[create | delete | show]")
-	dbg := flag.Bool("dbg", false, "[true | false]")
+	var op_usage = `
+    Use the option flag <op> to [create | delete | show] configuration
+
+    Example:
+
+    go run api-rate-limit.go -op create
+    go run api-rate-limit.go -op show
+    go run api-rate-limit.go -op delete
+
+    When -op is not provided, it defaults to show
+
+`
+	op := flag.String("op", "show", op_usage)
+
+	var dbg_usage = `
+    Use the option flag <dbg> to show debugging messages
+
+    Example:
+
+    go run api-rate-limit.go -op create -dbg
+    go run api-rate-limit.go -op show -dbg
+    go run api-rate-limit.go -op delete -dbg
+
+`
+	dbg := flag.Bool("dbg", false, dbg_usage)
 	flag.Parse()
+
 	doop(*op, *dbg)
 }
