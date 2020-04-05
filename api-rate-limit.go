@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"sort"
 )
 
@@ -475,13 +476,7 @@ func doop(op string, dbg bool) {
 	dohttp(steps, dbg)
 }
 
-func usage() {
-	var u = `
-      go run api-rate-limit.go --op create --dbg true
-      go run api-rate-limit.go --op show --dbg true
-      go run api-rate-limit.go --op delete --dbg true
-`
-
+func usage(u string) {
 	fmt.Printf(u)
 }
 
@@ -502,23 +497,26 @@ func main() {
     go run api-rate-limit.go -op show
     go run api-rate-limit.go -op delete
 
-    When -op is not provided, it defaults to show
-
 `
-	op := flag.String("op", "show", op_usage)
+	op := flag.String("op", "none", op_usage)
 
 	var dbg_usage = `
-    Use the option flag <dbg> to show debugging messages
+    Use the option flag <v> to show debugging messages
 
     Example:
 
-    go run api-rate-limit.go -op create -dbg
-    go run api-rate-limit.go -op show -dbg
-    go run api-rate-limit.go -op delete -dbg
+    go run api-rate-limit.go -op create -v
+    go run api-rate-limit.go -op show -v
+    go run api-rate-limit.go -op delete -v
 
 `
-	dbg := flag.Bool("dbg", false, dbg_usage)
+	dbg := flag.Bool("v", false, dbg_usage)
 	flag.Parse()
+
+	if *op == "none" {
+		usage(op_usage + dbg_usage)
+		os.Exit(0)
+	}
 
 	doop(*op, *dbg)
 }
