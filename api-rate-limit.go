@@ -64,8 +64,6 @@ type PostGlobalConfigArg struct {
 	Config            string `json: Config`
 }
 
-const base_url = `http://localhost:1323`
-
 func pp(in []byte) string {
 	var pj bytes.Buffer
 	json.Indent(&pj, in, "", "    ")
@@ -169,7 +167,7 @@ func removews(with_ws []byte) []byte {
 	return with_ws
 }
 
-func doop(op string, dbg bool) {
+func doop(op string, dbg bool, base_url string) {
 
 	post_proxy_arg := PostProxyArg{
 		Name: "gw",
@@ -509,14 +507,28 @@ func main() {
     go run api-rate-limit.go -op show -v
     go run api-rate-limit.go -op delete -v
 
+    By default, it runs without the verbose flag
 `
 	dbg := flag.Bool("v", false, dbg_usage)
+
+	var url_usage = `
+    Use the url flag <url> to provide location of Enroute GW
+
+    Example:
+
+    go run api-rate-limit.go -url http://localhost:1323
+
+    By default it assumes Enroute GW is running on the same host
+    By default It runs with default url http://localhost:1323
+`
+	base_url := flag.String("url", "http://localhost:1323", url_usage)
+
 	flag.Parse()
 
 	if *op == "none" {
-		usage(op_usage + dbg_usage)
+		usage(op_usage + dbg_usage + url_usage)
 		os.Exit(0)
 	}
 
-	doop(*op, *dbg)
+	doop(*op, *dbg, *base_url)
 }
